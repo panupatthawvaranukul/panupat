@@ -132,13 +132,49 @@ if st.button("🚀 เริ่มวิเคราะห์ข้อมูล"
             else:
                 st.error("❌ ไม่พบข้อมูลข่าวสารในช่วงเวลาและคีย์เวิร์ดที่ระบุ ลองเปลี่ยนคำค้นหาดูนะครับ")
 
-# ค้นหาบริเวณบรรทัดที่มีคำว่า if st.button("🚀 เริ่มวิเคราะห์ข้อมูล", use_container_width=True):
+# --- 5. ออกแบบหน้าจอ Interface ตามรูปภาพเป๊ะๆ ---
+st.title("Social Listening & Executive Insights")
+st.write("")
+
+# สร้าง 2 คอลัมน์ด้านบนตามภาพช่องค้นหาและเลือกช่วงเวลา
+col_search, col_time = st.columns([2, 1])
+
+with col_search:
+    keywords_input = st.text_input(
+        "ช่องค้นหาคีย์เวิร์ด (ใส่ได้หลายคำ คั่นด้วยเครื่องหมายจุลภาค , )", 
+        placeholder="เช่น การท่องเที่ยว, วีซ่าฟรี, เที่ยวไทย",
+        value="การท่องเที่ยว, วีซ่าฟรี"
+    )
+
+with col_time:
+    time_period = st.selectbox(
+        "เลือกช่วงเวลา",
+        ["1 สัปดาห์", "1 เดือน", "3 เดือน", "6 เดือน", "YTD", "1 ปี"]
+    )
+
+st.write("")
+
+# ปุ่มกดเริ่มรันแบบ Clean Style
 if st.button("🚀 เริ่มวิเคราะห์ข้อมูล", use_container_width=True):
     if not keywords_input:
         st.warning("กรุณากรอกคีย์เวิร์ดอย่างน้อย 1 คำครับ")
     elif model is None:
-        # ดักจับเคสกรณีที่โมเดลสร้างไม่สำเร็จ จะได้ขึ้นเตือนน่ารักๆ แทนที่จะปล่อยให้หน้าจอพังสีแดง
         st.error("⚠️ ไม่สามารถเปิดใช้งานสมอง AI ได้เนื่องจากระบบหา API Key ไม่เจอ โปรดตรวจสอบความถูกต้องของระบบ Secrets อีกครั้งครับ")
     else:
         with st.spinner("ระบบกำลังรวบรวมมิติข้อมูลและให้ AI สรุปผลความรู้..."):
-            # ดำเนินการรันโค้ดส่วนต่อไปตามปกติ...
+            # 1. ดึงข้อมูลตามเงื่อนไขใหม่
+            news_data = fetch_multitopic_data(keywords_input, time_period)
+            
+            if news_data:
+                # 2. ให้ AI สรุปแบบปล่อยพลังเต็มที่
+                executive_insight = generate_creative_report(news_data, keywords_input)
+                
+                # 3. ช่องสรุปใหญ่ด้านล่างกล่องเดียวคลีนๆ
+                st.write("---")
+                st.subheader("💡 ช่องสรุป Social Listening & Insight")
+                
+                # กล่องครอบเนื้อหารายงานสวยๆ
+                with st.container(border=True):
+                    st.markdown(executive_insight)
+            else:
+                st.error("❌ ไม่พบข้อมูลข่าวสารในช่วงเวลาและคีย์เวิร์ดที่ระบุ ลองเปลี่ยนคำค้นหาดูนะครับ")
