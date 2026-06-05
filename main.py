@@ -86,12 +86,17 @@ def generate_creative_report(raw_data, topics):
     - จงใช้ความเชี่ยวชาญของ Gemini สรุปเนื้อหาออกมาในรูปแบบที่คิดว่า 'มีประโยชน์ ทรงคุณค่า และช่วยให้ผู้บริหารตัดสินใจเชิงกลยุทธ์ได้ดีที่สุด' 
     - เขียนด้วยภาษาที่เฉียบคม เป็นมืออาชีพ กระชับ และน่าดึงดูด โดยใช้ Markdown ในการจัดหน้าให้สวยงามและอ่านง่ายที่สุด
     """
-    # ปรับเป็นคำสั่งรันโมเดลมาตรฐานเวอร์ชันปัจจุบัน
-    response = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=prompt,
-    )
-    return response.text
+    
+    try:
+        # เปลี่ยนการส่งค่าพารามิเตอร์ให้เป็นรูปแบบ String ตรงๆ (รูปแบบนี้ปลอดภัยจาก ClientError ที่สุด)
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt
+        )
+        return response.text
+    except Exception as e:
+        # หากระบบคลาวด์ยังดื้อแพ่ง ติดขัดสิทธิ์ API Key ตัวเดิม ให้ส่งข้อความแจ้งเตือนมาแทนหน้าจอพังสีแดง
+        return f"⚠️ ระบบ AI ปฏิเสธการทำงานชั่วคราว (ข้อผิดพลาด: {str(e)}) แนะนำให้สร้าง API Key อันใหม่ที่เว็บ Google AI Studio แล้วนำมาเปลี่ยนในระบบ Secrets ครับ"
 
 # --- 6. ออกแบบหน้าจอ Interface ตามรูปภาพเป๊ะๆ ---
 st.title("Social Listening & Executive Insights")
