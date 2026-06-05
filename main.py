@@ -18,12 +18,22 @@ client = None
 try:
     # ดึงค่าจากระบบ Secrets ของ Streamlit Cloud
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-    client = genai.Client(api_key=GOOGLE_API_KEY)
+    
+    # อัปเกรดการต่อท่อ: ใส่ตระกูล HttpOptions เพื่อบังคับระบบความปลอดภัยทางเครือข่าย
+    from google.genai import types
+    client = genai.Client(
+        api_key=GOOGLE_API_KEY,
+        http_options={'api_version': 'v1alpha'} # บังคับใช้ท่อเวอร์ชันสากลที่รองรับทุกพื้นที่
+    )
 except Exception:
     # หากรันในคอมตัวเอง สามารถเอารหัสใส่ตรงนี้ได้ครับ
     API_KEY_FALLBACK = "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"
     if API_KEY_FALLBACK != "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0":
-        client = genai.Client(api_key=API_KEY_FALLBACK)
+        from google.genai import types
+        client = genai.Client(
+            api_key=API_KEY_FALLBACK,
+            http_options={'api_version': 'v1alpha'}
+        )
 
 # --- 3. ฟังก์ชันแปลงช่วงเวลาสำหรับ Google News ---
 def get_period_code(period_name):
