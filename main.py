@@ -90,6 +90,7 @@ st.write("")
 col_search, col_time = st.columns([2, 1])
 
 with col_search:
+    # ตั้งชื่อตัวแปรหลักว่า keywords_input
     keywords_input = st.text_input(
         "ช่องค้นหาคีย์เวิร์ด (ใส่ได้หลายคำ คั่นด้วยเครื่องหมายจุลภาค , )", 
         placeholder="เช่น การท่องเที่ยว, วีซ่าฟรี, เที่ยวไทย",
@@ -111,9 +112,11 @@ if st.button("🚀 เริ่มวิเคราะห์ข้อมูล"
         st.error("⚠️ ไม่สามารถเปิดใช้งานสมอง AI ได้เนื่องจากระบบหา API Key ไม่เจอ โปรดตรวจสอบความถูกต้องของระบบ Secrets อีกครั้งครับ")
     else:
         with st.spinner("ระบบกำลังรวบรวมมิติข้อมูลและให้ AI สรุปผลความรู้..."):
+            # ดึงข้อมูลโดยส่งค่า keywords_input
             news_data = fetch_multitopic_data(keywords_input, time_period)
             
             if news_data:
+                # ส่งค่า keywords_input (เช็กตัวแปรสะกดตรงกันเป๊ะ)
                 executive_insight = generate_creative_report(news_data, keywords_input)
                 
                 st.write("---")
