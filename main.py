@@ -11,14 +11,23 @@ st.set_page_config(
     layout="wide"
 )
 
-# ดึง API Key จาก Secrets ของ Streamlit Cloud 
-# (หรือถ้าเทสในคอม สามารถเปลี่ยน st.secrets["GOOGLE_API_KEY"] เป็น "รหัสของคุณ" ได้ครับ)
+# --- 2. ตั้งค่า API Key และโมเนลระดับ Global ---
+# ตั้งค่าตัวแปรเปล่าไว้ก่อนเพื่อป้องกัน NameError
+model = None 
+
+# 1. พยายามดึงค่าจากระบบ Secrets ของ Streamlit Cloud ก่อน
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=GOOGLE_API_KEY)
     model = genai.GenerativeModel('gemini-2.5-flash')
 except Exception:
-    st.warning("⚠️ โปรดตรวจสอบการตั้งค่า Gemini API Key ในระบบ Secrets")
+    # 2. หากดึงจาก Secrets ไม่สำเร็จ (เช่น รันในคอมตัวเอง) ให้สลับมาใช้ตรงนี้อัตโนมัติ
+    # คุณสามารถนำรหัส API Key ยาวๆ มาใส่ตรงนี้ได้เลยครับ เพื่อความชัวร์ในการรัน
+    API_KEY_FALLBACK = "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0" 
+    
+    if API_KEY_FALLBACK != "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0":
+        genai.configure(api_key=API_KEY_FALLBACK)
+        model = genai.GenerativeModel('gemini-2.5-flash')
 
 # --- 2. ฟังก์ชันแปลงช่วงเวลาสำหรับ Google News ---
 def get_period_code(period_name):
@@ -122,3 +131,14 @@ if st.button("🚀 เริ่มวิเคราะห์ข้อมูล"
                     st.markdown(executive_insight)
             else:
                 st.error("❌ ไม่พบข้อมูลข่าวสารในช่วงเวลาและคีย์เวิร์ดที่ระบุ ลองเปลี่ยนคำค้นหาดูนะครับ")
+
+# ค้นหาบริเวณบรรทัดที่มีคำว่า if st.button("🚀 เริ่มวิเคราะห์ข้อมูล", use_container_width=True):
+if st.button("🚀 เริ่มวิเคราะห์ข้อมูล", use_container_width=True):
+    if not keywords_input:
+        st.warning("กรุณากรอกคีย์เวิร์ดอย่างน้อย 1 คำครับ")
+    elif model is None:
+        # ดักจับเคสกรณีที่โมเดลสร้างไม่สำเร็จ จะได้ขึ้นเตือนน่ารักๆ แทนที่จะปล่อยให้หน้าจอพังสีแดง
+        st.error("⚠️ ไม่สามารถเปิดใช้งานสมอง AI ได้เนื่องจากระบบหา API Key ไม่เจอ โปรดตรวจสอบความถูกต้องของระบบ Secrets อีกครั้งครับ")
+    else:
+        with st.spinner("ระบบกำลังรวบรวมมิติข้อมูลและให้ AI สรุปผลความรู้..."):
+            # ดำเนินการรันโค้ดส่วนต่อไปตามปกติ...
