@@ -118,7 +118,7 @@ def generate_creative_report(raw_data, topics):
     try:
         # อัปเกรดเป็น gemini-2.5-pro เพื่อการวิเคราะห์ที่ลึกซึ้งและเฉียบคมยิ่งขึ้น
         response = client.models.generate_content(
-            model='gemini-2.5-pro',
+            model='gemini-2.5-flash',
             contents=prompt
         )
         return response.text
