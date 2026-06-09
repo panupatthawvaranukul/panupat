@@ -8,6 +8,7 @@ from google import genai
 # --- 1. Web Page & Global Roboto Font Configuration ---
 st.set_page_config(
     page_title="Social Listening Dashboard",
+    page_icon="✈️",
     layout="wide"
 )
 
@@ -26,19 +27,33 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (Gemini & Apify) ---
+# --- 2. API Connection Settings (แก้ไขตรงนี้เพื่อความชัวร์ 100%) ---
 client = None
+GOOGLE_API_KEY = None
 APIFY_TOKEN = None
 
+# สเต็ปแรก: พยายามดึงจาก Secrets ก่อน
 try:
     GOOGLE_API_KEY = st.secrets["AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"]
     APIFY_TOKEN = st.secrets["apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"]
+except Exception:
+    pass
+
+# สเต็ปสอง: แผนสำรอง (Fallback) หากระบบ Secrets อ่านค่าเพี้ยน ให้ฝังรหัสตรงนี้เลยเพื่อบังคับให้รันผ่าน
+if not GOOGLE_API_KEY:
+    GOOGLE_API_KEY = "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"
+
+if not APIFY_TOKEN:
+    APIFY_TOKEN = "apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"
+
+# เปิดการเชื่อมต่อ AI Engine
+try:
     client = genai.Client(
         api_key=GOOGLE_API_KEY,
         http_options={'api_version': 'v1alpha'}
     )
-except Exception:
-    st.warning("⚠️ Please check your Streamlit Secrets for GOOGLE_API_KEY and APIFY_TOKEN.")
+except Exception as e:
+    st.error(f"AI Engine Initialization Failed: {str(e)}")
 
 # --- 3. Time Period Code Converter ---
 def get_period_code(period_name):
@@ -82,12 +97,10 @@ def fetch_pantip_data(kw):
         pass
     return data_stream
 
-# 🔥 ท่อขุดข้อความบน X (Twitter) ของจริงผ่านเซิร์ฟเวอร์ Apify
 def fetch_real_x_data(kw):
     if not APIFY_TOKEN:
         return ""
     
-    # สั่งการผ่าน Twitter Scraper Actor ของ Apify (ดึงแบบระบุคีย์เวิร์ดล่าสุด 15 ทวีต)
     actor_url = "https://api.apify.com/v2/acts/apidojo~tweet-scraper/run-sync-get-dataset-items"
     headers = {"Content-Type": "application/json"}
     params = {"token": APIFY_TOKEN}
@@ -107,7 +120,6 @@ def fetch_real_x_data(kw):
                 data_stream += f"🐦 [Real-time Live Tweets & Complaints on X] ===\n"
                 for tweet in tweets:
                     text = tweet.get("full_text", tweet.get("text", ""))
-                    # คัดกรองเอาเฉพาะข้อความมาส่งให้ AI
                     if text:
                         clean_text = text.replace("\n", " ").strip()
                         data_stream += f"- {clean_text}\n"
@@ -126,7 +138,7 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "\n"
         all_data_stream += fetch_pantip_data(kw)
         all_data_stream += "\n"
-        all_data_stream += fetch_real_x_data(kw) # ดึงค่าจากท่อขุดตัวจริง
+        all_data_stream += fetch_real_x_data(kw)
         all_data_stream += "\n"
             
     return all_data_stream
@@ -188,8 +200,6 @@ st.write("")
 if st.button("🚀 Execute Strategic Analysis", use_container_width=True):
     if not keywords_input:
         st.warning("Please enter at least one keyword.")
-    elif client is None or not APIFY_TOKEN:
-        st.error("⚠️ Connection failed. Please ensure both GOOGLE_API_KEY and APIFY_TOKEN are configured in Streamlit Secrets.")
     else:
         with st.spinner("Deep-scraping live X tweets, crawling Pantip, and gleaning news streams for aviation intelligence..."):
             combined_data = fetch_multitopic_data(keywords_input, time_period)
