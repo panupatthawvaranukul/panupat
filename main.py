@@ -2,69 +2,50 @@ import streamlit as st
 import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
+import json
 from google import genai 
 
 # --- 1. Web Page & Global Roboto Font Configuration ---
 st.set_page_config(
-    page_title="Airline Social Listening Dashboard",
-    page_icon="✈️",
+    page_title="Social Listening Dashboard",
     layout="wide"
 )
 
-# Inject CSS to import and apply Google's signature 'Roboto' font
 st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
-        
-        /* Apply Roboto across all UI elements with strict consistency */
         html, body, [class*="css"], .stMarkdown, p, button, input, select {
             font-family: 'Roboto', sans-serif !important;
             font-size: 15px !important;
             line-height: 1.6 !important;
         }
-        /* Standarized professional headers */
         h1 { font-size: 26px !important; font-weight: 700 !important; margin-bottom: 20px !important; }
         h2 { font-size: 20px !important; font-weight: 500 !important; margin-top: 15px !important; margin-bottom: 10px !important; }
         h3 { font-size: 18px !important; font-weight: 500 !important; }
-        
-        .report-box {
-            padding: 20px;
-            border-radius: 8px;
-            background-color: transparent;
-        }
+        .report-box { padding: 20px; border-radius: 8px; background-color: transparent; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings ---
+# --- 2. API Connection Settings (Gemini & Apify) ---
 client = None
+APIFY_TOKEN = None
+
 try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+    GOOGLE_API_KEY = st.secrets["AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"]
+    APIFY_TOKEN = st.secrets["apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"]
     client = genai.Client(
         api_key=GOOGLE_API_KEY,
         http_options={'api_version': 'v1alpha'}
     )
 except Exception:
-    API_KEY_FALLBACK = "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"
-    if API_KEY_FALLBACK != "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0":
-        client = genai.Client(
-            api_key=API_KEY_FALLBACK,
-            http_options={'api_version': 'v1alpha'}
-        )
+    st.warning("⚠️ Please check your Streamlit Secrets for GOOGLE_API_KEY and APIFY_TOKEN.")
 
 # --- 3. Time Period Code Converter ---
 def get_period_code(period_name):
-    mapping = {
-        "1 Week": "7d",
-        "1 Month": "1m",
-        "3 Months": "3m",
-        "6 Months": "6m",
-        "YTD": "ytd",
-        "1 Year": "1y"
-    }
+    mapping = {"1 Week": "7d", "1 Month": "1m", "3 Months": "3m", "6 Months": "6m", "YTD": "ytd", "1 Year": "1y"}
     return mapping.get(period_name, "7d")
 
-# --- 4. Fetch Data Functions (Multi-Channel Scraping) ---
-
+# --- 4. Fetch Data Functions ---
 def fetch_news_data(kw, period_code):
     encoded_keyword = urllib.parse.quote(kw)
     url = f"https://news.google.com/rss/search?q={encoded_keyword}+when:{period_code}&hl=th&gl=TH&ceid=TH:th"
@@ -101,24 +82,35 @@ def fetch_pantip_data(kw):
         pass
     return data_stream
 
-def fetch_x_data(kw):
-    # ดึงข้อมูลกระแสเรียลไทม์บน X (Twitter) ผ่านท่อค้นหาเปิดพิเศษแบบไร้ API Key
-    query = f"{kw} (lang:th)"
-    encoded_query = urllib.parse.quote(query)
-    url = f"https://news.google.com/rss/search?q={encoded_query}+site:x.com&hl=th&gl=TH&ceid=TH:th"
+# 🔥 ท่อขุดข้อความบน X (Twitter) ของจริงผ่านเซิร์ฟเวอร์ Apify
+def fetch_real_x_data(kw):
+    if not APIFY_TOKEN:
+        return ""
+    
+    # สั่งการผ่าน Twitter Scraper Actor ของ Apify (ดึงแบบระบุคีย์เวิร์ดล่าสุด 15 ทวีต)
+    actor_url = "https://api.apify.com/v2/acts/apidojo~tweet-scraper/run-sync-get-dataset-items"
+    headers = {"Content-Type": "application/json"}
+    params = {"token": APIFY_TOKEN}
+    payload = {
+        "searchTerms": [kw],
+        "maxItems": 15,
+        "sort": "Latest",
+        "tweetLanguage": "th"
+    }
+    
     data_stream = ""
     try:
-        response = requests.get(url, timeout=10)
-        root = ET.fromstring(response.content)
-        items = root.findall('.//item')[:6]
-        if items:
-            data_stream += f"🐦 [Real-time Tweets & Viral Concerns on X] ===\n"
-            for item in items:
-                title = item.find('title').text if item.find('title') is not None else ""
-                # ทำความสะอาดข้อมูลข้อความทวีต
-                clean_tweet = title.split(" / X")[0].split("on Twitter:")[0].strip()
-                if clean_tweet:
-                    data_stream += f"- {clean_tweet}\n"
+        response = requests.post(actor_url, headers=headers, params=params, json=payload, timeout=25)
+        if response.status_code == 201 or response.status_code == 200:
+            tweets = response.json()
+            if tweets:
+                data_stream += f"🐦 [Real-time Live Tweets & Complaints on X] ===\n"
+                for tweet in tweets:
+                    text = tweet.get("full_text", tweet.get("text", ""))
+                    # คัดกรองเอาเฉพาะข้อความมาส่งให้ AI
+                    if text:
+                        clean_text = text.replace("\n", " ").strip()
+                        data_stream += f"- {clean_text}\n"
     except Exception:
         pass
     return data_stream
@@ -134,7 +126,7 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "\n"
         all_data_stream += fetch_pantip_data(kw)
         all_data_stream += "\n"
-        all_data_stream += fetch_x_data(kw)
+        all_data_stream += fetch_real_x_data(kw) # ดึงค่าจากท่อขุดตัวจริง
         all_data_stream += "\n"
             
     return all_data_stream
@@ -143,7 +135,7 @@ def fetch_multitopic_data(keywords_str, period_name):
 def generate_airline_report(raw_data, topics):
     prompt = f"""
     You are the Chief Strategic Officer (CSO) of a leading international airline. 
-    Analyze the following multi-channel online data (comprising public news, long-form discussions on Pantip, and short viral tweets/complaints on X/Twitter) regarding these topics: "{topics}"
+    Analyze the following multi-channel online data (comprising public news, long-form discussions on Pantip, and raw live tweets/complaints scraped from X/Twitter) regarding these topics: "{topics}"
     
     Raw Cross-Platform Data:
     {raw_data}
@@ -152,7 +144,7 @@ def generate_airline_report(raw_data, topics):
     
     Strict Strategic Requirements:
     1. Every recommendation and insight MUST be explicitly tailored to the AIRLINE business (e.g., flight operations, passenger experience, ticketing, ground handling, loyalty programs, or airline branding). 
-    2. Synthesize customer pain points from both platforms: Contrast the detailed complaints on Pantip with the fast-moving, high-intensity viral trends on X (Twitter), and compare them against official news reporting.
+    2. Synthesize customer pain points from both platforms: Contrast the detailed complaints on Pantip with the fast-moving, high-intensity viral trends and angry tweets on X (Twitter), and compare them against official news reporting.
     3. Keep font styling clean and professional. Structure the report using professional Markdown headers with uniform text presentation.
     
     Structure the report with these exact English sections:
@@ -163,7 +155,6 @@ def generate_airline_report(raw_data, topics):
     ## Airline Strategic Recommendations
     - Actionable operational, customer support, or aviation marketing steps the board should execute immediately.
     """
-    
     try:
         response = client.models.generate_content(
             model='gemini-2.5-flash',
@@ -197,17 +188,16 @@ st.write("")
 if st.button("🚀 Execute Strategic Analysis", use_container_width=True):
     if not keywords_input:
         st.warning("Please enter at least one keyword.")
-    elif client is None:
-        st.error("⚠️ AI engine connection failed. Please check your Secrets configuration for GOOGLE_API_KEY.")
+    elif client is None or not APIFY_TOKEN:
+        st.error("⚠️ Connection failed. Please ensure both GOOGLE_API_KEY and APIFY_TOKEN are configured in Streamlit Secrets.")
     else:
-        with st.spinner("Gleaning news streams, scraping Pantip discussions, and capturing X trends for aviation intelligence..."):
+        with st.spinner("Deep-scraping live X tweets, crawling Pantip, and gleaning news streams for aviation intelligence..."):
             combined_data = fetch_multitopic_data(keywords_input, time_period)
             
             if combined_data:
                 executive_insight = generate_airline_report(combined_data, keywords_input)
-                
                 st.write("---")
-                st.subheader("💡 Social Listening & Executive Insights Report (News + Pantip + X)")
+                st.subheader("💡 Social Listening & Executive Insights Report (News + Pantip + Real X)")
                 
                 with st.container(border=True):
                     st.markdown(f'<div class="report-box">{executive_insight}</div>', unsafe_allow_html=True)
