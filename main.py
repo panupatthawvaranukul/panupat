@@ -32,19 +32,19 @@ st.markdown("""
 GOOGLE_API_KEY = None
 APIFY_TOKEN = None
 
-# ดึงค่าจากระบบ Secrets ของ Streamlit Cloud (ถ้ามี)
+# ดึงค่าจากระบบ Secrets ของ Streamlit Cloud (ดึงจากชื่อกล่องที่ถูกต้อง)
 try:
-    GOOGLE_API_KEY = st.secrets["AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"]
-    APIFY_TOKEN = st.secrets["apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"]
+    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
+    APIFY_TOKEN = st.secrets["APIFY_TOKEN"]
 except Exception:
     pass
 
-# แผนสำรอง (Fallback) วางรหัสของคุณตรงนี้ได้เลยครับ
+# แผนสำรอง (Fallback) ปล่อยว่างไว้เพื่อความปลอดภัย รหัสจริงจะอยู่ในตู้นิรภัย Streamlit แทน
 if not GOOGLE_API_KEY:
     GOOGLE_API_KEY = ""
 
 if not APIFY_TOKEN:
-    APIFY_TOKEN = "apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"
+    APIFY_TOKEN = ""
 
 # ตั้งค่าการเชื่อมต่อด้วยวิธีดั้งเดิมที่ไม่มีปัญหาเรื่องสิทธิ์ 401
 if GOOGLE_API_KEY:
