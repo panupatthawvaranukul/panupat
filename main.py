@@ -27,31 +27,28 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (แก้ไขตรงนี้เพื่อความชัวร์ 100%) ---
+# --- 2. API Connection Settings (อัปเดตเวอร์ชันคลีนที่สุดสำหรับคีย์ใหม่) ---
 client = None
 GOOGLE_API_KEY = None
 APIFY_TOKEN = None
 
-# สเต็ปแรก: พยายามดึงจาก Secrets ก่อน
+# ดึงค่าจากระบบ Secrets ของ Streamlit Cloud (ถ้ามี)
 try:
     GOOGLE_API_KEY = st.secrets["AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"]
     APIFY_TOKEN = st.secrets["apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"]
 except Exception:
     pass
 
-# สเต็ปสอง: แผนสำรอง (Fallback) หากระบบ Secrets อ่านค่าเพี้ยน ให้ฝังรหัสตรงนี้เลยเพื่อบังคับให้รันผ่าน
+# แผนสำรอง (Fallback) บังคับฝังรหัสตรงนี้หากกล่อง Secrets อ่านค่าเพี้ยน
 if not GOOGLE_API_KEY:
     GOOGLE_API_KEY = "AQ.Ab8RN6L2QwhpccKnrKVUVHi47jQaJtRfYPX6g-h3flCIGzRfoA"
 
 if not APIFY_TOKEN:
     APIFY_TOKEN = "apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"
 
-# เปิดการเชื่อมต่อ AI Engine
+# เปิดระบบเชื่อมต่อ AI Engine แบบมาตรฐานสากล (ตัด api_version เก่าที่ทำให้เกิด 401 ออก)
 try:
-    client = genai.Client(
-        api_key=GOOGLE_API_KEY,
-        http_options={'api_version': 'v1alpha'}
-    )
+    client = genai.Client(api_key=GOOGLE_API_KEY)
 except Exception as e:
     st.error(f"AI Engine Initialization Failed: {str(e)}")
 
