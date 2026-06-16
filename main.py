@@ -41,7 +41,7 @@ except Exception:
 
 # สเต็ปสอง: แผนสำรอง (Fallback) หากระบบ Secrets อ่านค่าเพี้ยน ให้ฝังรหัสตรงนี้เลยเพื่อบังคับให้รันผ่าน
 if not GOOGLE_API_KEY:
-    GOOGLE_API_KEY = "AIzaSyBcmnLrYMOTp6QjZSwOvXi4ig0Xitm41s0"
+    GOOGLE_API_KEY = "AQ.Ab8RN6L2QwhpccKnrKVUVHi47jQaJtRfYPX6g-h3flCIGzRfoA"
 
 if not APIFY_TOKEN:
     APIFY_TOKEN = "apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"
