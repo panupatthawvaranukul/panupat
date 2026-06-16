@@ -3,11 +3,12 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
 import json
-from google import genai 
+# สลับมาใช้ไลบรารีมาตรฐานดั้งเดิมที่เสถียรกับคีย์ฟรีที่สุด
+import google.generativeai as tg_genai 
 
 # --- 1. Web Page & Global Roboto Font Configuration ---
 st.set_page_config(
-    page_title="Social Listening Dashboard",
+    page_title="Airline Social Listening Dashboard",
     page_icon="✈️",
     layout="wide"
 )
@@ -27,8 +28,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (อัปเดตเวอร์ชันคลีนที่สุดสำหรับคีย์ใหม่) ---
-client = None
+# --- 2. API Connection Settings (เสถียรชัวร์ 100% สำหรับคีย์ใหม่) ---
 GOOGLE_API_KEY = None
 APIFY_TOKEN = None
 
@@ -39,18 +39,16 @@ try:
 except Exception:
     pass
 
-# แผนสำรอง (Fallback) บังคับฝังรหัสตรงนี้หากกล่อง Secrets อ่านค่าเพี้ยน
+# แผนสำรอง (Fallback) วางรหัสของคุณตรงนี้ได้เลยครับ
 if not GOOGLE_API_KEY:
     GOOGLE_API_KEY = "AQ.Ab8RN6L2QwhpccKnrKVUVHi47jQaJtRfYPX6g-h3flCIGzRfoA"
 
 if not APIFY_TOKEN:
     APIFY_TOKEN = "apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"
 
-# เปิดระบบเชื่อมต่อ AI Engine แบบมาตรฐานสากล (ตัด api_version เก่าที่ทำให้เกิด 401 ออก)
-try:
-    client = genai.Client(api_key=GOOGLE_API_KEY)
-except Exception as e:
-    st.error(f"AI Engine Initialization Failed: {str(e)}")
+# ตั้งค่าการเชื่อมต่อด้วยวิธีดั้งเดิมที่ไม่มีปัญหาเรื่องสิทธิ์ 401
+if GOOGLE_API_KEY:
+    tg_genai.configure(api_key=GOOGLE_API_KEY)
 
 # --- 3. Time Period Code Converter ---
 def get_period_code(period_name):
@@ -165,10 +163,9 @@ def generate_airline_report(raw_data, topics):
     - Actionable operational, customer support, or aviation marketing steps the board should execute immediately.
     """
     try:
-        response = client.models.generate_content(
-            model='gemini-2.5-flash',
-            contents=prompt
-        )
+        # ใช้โครงสร้างเรียกใช้แบบดั้งเดิมผ่านโมเดลยอดนิยมที่อึดที่สุดกะคีย์ฟรี
+        model = tg_genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"⚠️ AI Service temporary unavailable. (Error: {str(e)}). Please wait 10 seconds and try again."
