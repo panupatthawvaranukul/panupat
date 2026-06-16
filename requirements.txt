@@ -1,5 +1,3 @@
 streamlit
-plotly
-google-genai
 requests
-GoogleNews
+google-generativeai
