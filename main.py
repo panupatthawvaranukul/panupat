@@ -163,8 +163,8 @@ def generate_airline_report(raw_data, topics):
     - Actionable operational, customer support, or aviation marketing steps the board should execute immediately.
     """
     try:
-      # โค้ดใหม่ที่ถูกต้องและรันผ่านแน่นอน 
-        model = tg_genai.GenerativeModel('v1/models/gemini-1.5-flash')
+# โค้ดใหม่: ใช้คำว่า 'models/' นำหน้าตามกฎดั้งเดิมของไลบรารีนี้
+        model = tg_genai.GenerativeModel('models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
