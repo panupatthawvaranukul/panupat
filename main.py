@@ -41,7 +41,7 @@ except Exception:
 
 # แผนสำรอง (Fallback) วางรหัสของคุณตรงนี้ได้เลยครับ
 if not GOOGLE_API_KEY:
-    GOOGLE_API_KEY = "AQ.Ab8RN6L2QwhpccKnrKVUVHi47jQaJtRfYPX6g-h3flCIGzRfoA"
+    GOOGLE_API_KEY = ""
 
 if not APIFY_TOKEN:
     APIFY_TOKEN = "apify_api_qJg7xtut67T50ZGsArA3FJQQelEIaJ1NUSUD"
