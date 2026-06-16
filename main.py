@@ -3,8 +3,6 @@ import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
 import json
-# สลับมาใช้ไลบรารีมาตรฐานดั้งเดิมที่เสถียรกับคีย์ฟรีที่สุด
-import google.generativeai as tg_genai 
 
 # --- 1. Web Page & Global Roboto Font Configuration ---
 st.set_page_config(
@@ -28,27 +26,15 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (เสถียรชัวร์ 100% สำหรับคีย์ใหม่) ---
+# --- 2. API Connection Settings (ดึงค่าจากตู้เซฟ Secrets เท่านั้น) ---
 GOOGLE_API_KEY = None
 APIFY_TOKEN = None
 
-# ดึงค่าจากระบบ Secrets ของ Streamlit Cloud (ดึงจากชื่อกล่องที่ถูกต้อง)
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
     APIFY_TOKEN = st.secrets["APIFY_TOKEN"]
 except Exception:
     pass
-
-# แผนสำรอง (Fallback) ปล่อยว่างไว้เพื่อความปลอดภัย รหัสจริงจะอยู่ในตู้นิรภัย Streamlit แทน
-if not GOOGLE_API_KEY:
-    GOOGLE_API_KEY = ""
-
-if not APIFY_TOKEN:
-    APIFY_TOKEN = ""
-
-# ตั้งค่าการเชื่อมต่อด้วยวิธีดั้งเดิมที่ไม่มีปัญหาเรื่องสิทธิ์ 401
-if GOOGLE_API_KEY:
-    tg_genai.configure(api_key=GOOGLE_API_KEY)
 
 # --- 3. Time Period Code Converter ---
 def get_period_code(period_name):
@@ -95,29 +81,22 @@ def fetch_pantip_data(kw):
 def fetch_real_x_data(kw):
     if not APIFY_TOKEN:
         return ""
-    
     actor_url = "https://api.apify.com/v2/acts/apidojo~tweet-scraper/run-sync-get-dataset-items"
     headers = {"Content-Type": "application/json"}
     params = {"token": APIFY_TOKEN}
-    payload = {
-        "searchTerms": [kw],
-        "maxItems": 15,
-        "sort": "Latest",
-        "tweetLanguage": "th"
-    }
+    payload = {"searchTerms": [kw], "maxItems": 15, "sort": "Latest", "tweetLanguage": "th"}
     
     data_stream = ""
     try:
         response = requests.post(actor_url, headers=headers, params=params, json=payload, timeout=25)
-        if response.status_code == 201 or response.status_code == 200:
+        if response.status_code in [200, 201]:
             tweets = response.json()
             if tweets:
                 data_stream += f"🐦 [Real-time Live Tweets & Complaints on X] ===\n"
                 for tweet in tweets:
                     text = tweet.get("full_text", tweet.get("text", ""))
                     if text:
-                        clean_text = text.replace("\n", " ").strip()
-                        data_stream += f"- {clean_text}\n"
+                        data_stream += f"- {text.replace('\n', ' ').strip()}\n"
     except Exception:
         pass
     return data_stream
@@ -126,20 +105,18 @@ def fetch_multitopic_data(keywords_str, period_name):
     period_code = get_period_code(period_name)
     keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
     all_data_stream = ""
-    
     for kw in keywords:
         all_data_stream += f"Analyzed Keyword: {kw}\n"
-        all_data_stream += fetch_news_data(kw, period_code)
-        all_data_stream += "\n"
-        all_data_stream += fetch_pantip_data(kw)
-        all_data_stream += "\n"
-        all_data_stream += fetch_real_x_data(kw)
-        all_data_stream += "\n"
-            
+        all_data_stream += fetch_news_data(kw, period_code) + "\n"
+        all_data_stream += fetch_pantip_data(kw) + "\n"
+        all_data_stream += fetch_real_x_data(kw) + "\n"
     return all_data_stream
 
-# --- 5. Airline Strategy Prompt (English Synthesis) ---
+# --- 5. Airline Strategy Prompt via Direct REST API ---
 def generate_airline_report(raw_data, topics):
+    if not GOOGLE_API_KEY:
+        return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
+        
     prompt = f"""
     You are the Chief Strategic Officer (CSO) of a leading international airline. 
     Analyze the following multi-channel online data (comprising public news, long-form discussions on Pantip, and raw live tweets/complaints scraped from X/Twitter) regarding these topics: "{topics}"
@@ -162,13 +139,21 @@ def generate_airline_report(raw_data, topics):
     ## Airline Strategic Recommendations
     - Actionable operational, customer support, or aviation marketing steps the board should execute immediately.
     """
+    
+    # หักดิบยิงตรงเข้าเซิร์ฟเวอร์ Google ด้วย REST API ไม่พึ่งพาห้องสมุดที่มีบั๊กค้างอีกต่อไป
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    data = {"contents": [{"parts": [{"text": prompt}]}]}
+    
     try:
-# โค้ดใหม่: ใช้คำว่า 'models/' นำหน้าตามกฎดั้งเดิมของไลบรารีนี้
-        model = tg_genai.GenerativeModel('models/gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        return response.text
+        response = requests.post(url, headers=headers, json=data, timeout=30)
+        if response.status_code == 200:
+            res_json = response.json()
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return f"⚠️ Google API Error ({response.status_code}): {response.text}"
     except Exception as e:
-        return f"⚠️ AI Service temporary unavailable. (Error: {str(e)}). Please wait 10 seconds and try again."
+        return f"⚠️ Request Failed: {str(e)}"
 
 # --- 6. Clean English Dashboard User Interface ---
 st.title("Aviation Social Listening & Executive Insights")
@@ -194,6 +179,8 @@ st.write("")
 if st.button("🚀 Execute Strategic Analysis", use_container_width=True):
     if not keywords_input:
         st.warning("Please enter at least one keyword.")
+    elif not GOOGLE_API_KEY or not APIFY_TOKEN:
+        st.error("⚠️ Setup incomplete. Please double check that both GOOGLE_API_KEY and APIFY_TOKEN are properly configured inside your Streamlit App Secrets.")
     else:
         with st.spinner("Deep-scraping live X tweets, crawling Pantip, and gleaning news streams for aviation intelligence..."):
             combined_data = fetch_multitopic_data(keywords_input, time_period)
