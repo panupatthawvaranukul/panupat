@@ -141,7 +141,7 @@ def generate_airline_report(raw_data, topics):
     """
     
     # หักดิบยิงตรงเข้าเซิร์ฟเวอร์ Google ด้วย REST API ไม่พึ่งพาห้องสมุดที่มีบั๊กค้างอีกต่อไป
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={GOOGLE_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     data = {"contents": [{"parts": [{"text": prompt}]}]}
     
@@ -165,7 +165,7 @@ with col_search:
     keywords_input = st.text_input(
         "Search Keywords (Separate multiple topics with a comma ',' | Thai keywords supported)", 
         placeholder="e.g., ดีเลย์, บริการสายการบิน, สัมภาระหาย",
-        value="บริการสายการบิน, เลื่อนไฟลท์"
+        value="แอร์เอเชีย"
     )
 
 with col_time:
