@@ -141,7 +141,7 @@ def generate_airline_report(raw_data, topics):
     """
     
     # หักดิบยิงตรงเข้าเซิร์ฟเวอร์ Google ด้วย REST API ไม่พึ่งพาห้องสมุดที่มีบั๊กค้างอีกต่อไป
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     data = {"contents": [{"parts": [{"text": prompt}]}]}
     
