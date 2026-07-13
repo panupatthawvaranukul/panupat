@@ -22,7 +22,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (ดึงค่าจาก Secrets นิรภัยดั้งเดิม) ---
+# --- 2. API Connection Settings (ดึงค่าจาก Secrets) ---
 GOOGLE_API_KEY = None
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
@@ -32,7 +32,29 @@ except Exception:
 if GOOGLE_API_KEY:
     genai.configure(api_key=GOOGLE_API_KEY)
 
-# --- 3. Fetch Pantip Data Only (ท่อดั้งเดิมที่เสถียรที่สุด) ---
+# --- 3. Data Horizon Period Converter ---
+def get_period_code(period_name):
+    mapping = {"1 Week": "7d", "1 Month": "1m", "3 Months": "3m", "6 Months": "6m", "1 Year": "1y"}
+    return mapping.get(period_name, "7d")
+
+# --- 4. Fetch Blended Data Functions (Google News + Pantip) ---
+def fetch_news_data(kw, period_code):
+    encoded_keyword = urllib.parse.quote(kw)
+    url = f"https://news.google.com/rss/search?q={encoded_keyword}+when:{period_code}&hl=th&gl=TH&ceid=TH:th"
+    data_stream = ""
+    try:
+        response = requests.get(url, timeout=10)
+        root = ET.fromstring(response.content)
+        items = root.findall('.//item')[:6]
+        if items:
+            data_stream += f"📰 [Google News Streams Regarding: {kw}] ===\n"
+            for item in items:
+                title = item.find('title').text if item.find('title') is not None else ""
+                data_stream += f"- {title}\n"
+    except Exception:
+        pass
+    return data_stream
+
 def fetch_pantip_data(kw):
     query = f"{kw} site:pantip.com"
     encoded_query = urllib.parse.quote(query)
@@ -41,7 +63,7 @@ def fetch_pantip_data(kw):
     try:
         response = requests.get(url, timeout=10)
         root = ET.fromstring(response.content)
-        items = root.findall('.//item')[:10]
+        items = root.findall('.//item')[:8]
         if items:
             data_stream += f"💬 [Consumer Voices on Pantip Regarding: {kw}] ===\n"
             for item in items:
@@ -52,62 +74,88 @@ def fetch_pantip_data(kw):
         pass
     return data_stream
 
-# --- 4. Generate Report Using Classic Stable Model ---
+def fetch_multitopic_data(keywords_str, period_name):
+    period_code = get_period_code(period_name)
+    keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
+    all_data_stream = ""
+    for kw in keywords:
+        all_data_stream += f"=== Target Keyword: {kw} ===\n"
+        all_data_stream += fetch_news_data(kw, period_code) + "\n"
+        all_data_stream += fetch_pantip_data(kw) + "\n"
+        all_data_stream += "---------------------------------------\n\n"
+    return all_data_stream
+
+# --- 5. Generate Report Using Classic Stable Model ---
 def generate_airline_report(raw_data, topics):
     if not GOOGLE_API_KEY:
         return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
         
     prompt = f"""
     You are the Chief Strategic Officer (CSO) of a leading international airline.
-    Analyze the following public discussions from Pantip forums regarding these topics: "{topics}"
+    Analyze the following blended online intelligence data (comprising official public Google News reports and organic consumer discussions from Pantip forums) regarding these topics: "{topics}"
     
-    Raw Pantip Data:
+    Blended Raw Data:
     {raw_data}
     
-    Synthesize this data into a strategic Executive Brief in English with these exact sections:
+    Your task is to synthesize this cross-platform data into a high-level strategic Executive Brief in English.
+    
+    Strict Strategic Requirements:
+    1. Tailor every single insight to the AIRLINE ecosystem (e.g., fleet operations, passenger service, ground handling, ticketing, crisis PR, or brand reputation).
+    2. Juxtapose media coverage against ground-level consumer feedback: Contrast how mainstream Google News reports these topics versus what real passengers are complaining about or praising on Pantip.
+    3. Structure the report using clean, uniform Markdown headers.
+    
+    Structure the report with these exact English sections:
     ## Executive Summary
-    - Provide a concise 3-line overview of customer sentiment on Pantip.
-    ## Pantip Passenger Insights
-    - Detailed breakdown of specific customer complaints, flight issues, or appreciation.
+    - Provide a concise 3-line overview of the multi-channel narrative and prevailing sentiment.
+    ## Blended Media & Pantip Passenger Insights
+    - Detailed breakdown of specific customer pain points, recurring flight/service complaints, or public praise found in the data.
     ## Airline Strategic Recommendations
-    - Actionable steps the airline board should execute immediately.
+    - Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.
     """
     
     try:
-        # ย้อนกลับมาใช้ตัวพิมพ์ชื่อรุ่นแบบคลาสสิกดั้งเดิมที่ Google ไม่มีวันบล็อก
+        # ใช้โมเดลคลาสสิกตัวดั้งเดิมของไลบรารีมาตรฐานที่ทนทานและไม่ติดปัญหา 404 ของรุ่นใหม่
         model = genai.GenerativeModel('gemini-pro')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"⚠️ Strategy Synthesis Failed: {str(e)}"
 
-# --- 5. Classic Minimalist User Interface ---
+# --- 6. User Interface ---
 st.title("Aviation Social Listening & Executive Insights")
-st.write("Focused Intelligence from Pantip Community Forums")
+st.write("Blended Intelligence Dashboard: Google News Streams + Pantip Community Forums")
 
-keywords_input = st.st.text_input(
-    "Search Keywords (Separate multiple topics with a comma ',' | Thai keywords supported)", 
-    value="บริการสายการบิน, เลื่อนไฟลท์"
-)
+col_search, col_time = st.columns([2, 1])
+
+with col_search:
+    keywords_input = st.text_input(
+        "Search Keywords (Separate multiple topics with a comma ',' | Thai keywords supported)", 
+        value="บริการสายการบิน, เลื่อนไฟลท์"
+    )
+
+with col_time:
+    time_period = st.selectbox(
+        "Data Horizon (Time Range for Google News)",
+        ["1 Week", "1 Month", "3 Months", "6 Months", "1 Year"]
+    )
 
 st.write("")
 
 if st.button("🚀 Execute Strategic Analysis", use_container_width=True):
     if not keywords_input:
         st.warning("Please enter a keyword.")
+    elif not GOOGLE_API_KEY:
+        st.error("⚠️ Setup incomplete. GOOGLE_API_KEY is not configured inside Streamlit Secrets.")
     else:
-        with st.spinner("Crawling Pantip forums for customer intelligence..."):
-            combined_data = ""
-            keywords = [k.strip() for k in keywords_input.split(",") if k.strip()]
-            for kw in keywords:
-                combined_data += fetch_pantip_data(kw) + "\n"
-                
+        with st.spinner("Harvesting Google News streams and crawling Pantip forums for blended aviation intelligence..."):
+            combined_data = fetch_multitopic_data(keywords_input, time_period)
+            
             if combined_data.strip():
                 executive_insight = generate_airline_report(combined_data, keywords_input)
                 st.write("---")
-                st.subheader("💡 Executive Insights Report (Pantip Only)")
+                st.subheader("💡 Blended Social Listening Report (Google News + Pantip)")
                 
                 with st.container(border=True):
                     st.markdown(f'<div class="report-box">{executive_insight}</div>', unsafe_allow_html=True)
             else:
-                st.error("❌ No discussions found on Pantip matching the selected parameters.")
+                st.error("❌ No data found on Google News or Pantip matching the selected parameters.")
