@@ -118,7 +118,7 @@ def generate_airline_report(raw_data, topics):
     """
     
     # 🚀 ใช้ท่อ REST API หลัก (v1) ยิงเข้าหาโมเดลตรงๆ โดยไม่ผ่าน SDK ที่ชอบค้างแคช
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
