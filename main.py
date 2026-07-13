@@ -2,7 +2,7 @@ import streamlit as st
 import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
-import json
+import google.generativeai as genai
 
 # --- 1. Web Page & Global Roboto Font Configuration ---
 st.set_page_config(
@@ -26,22 +26,23 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (ดึงค่าจากตู้เซฟ Secrets) ---
+# --- 2. API Connection Settings (ใช้ตู้เซฟ Secrets แบบดั้งเดิม) ---
 GOOGLE_API_KEY = None
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except Exception:
     pass
 
-if not GOOGLE_API_KEY:
-    GOOGLE_API_KEY = ""
+# เปิดใช้ระบบ Config ของไลบรารีเวอร์ชันเดิมที่เคยทำงานได้
+if GOOGLE_API_KEY:
+    genai.configure(api_key=GOOGLE_API_KEY)
 
 # --- 3. Data Horizon Period Converter ---
 def get_period_code(period_name):
     mapping = {"1 Week": "7d", "1 Month": "1m", "3 Months": "3m", "6 Months": "6m", "1 Year": "1y"}
     return mapping.get(period_name, "7d")
 
-# --- 4. Fetch Cross-Platform Data Functions (ผสม Google News + Pantip) ---
+# --- 4. Fetch Blended Data Functions (Google News + Pantip) ---
 def fetch_news_data(kw, period_code):
     encoded_keyword = urllib.parse.quote(kw)
     url = f"https://news.google.com/rss/search?q={encoded_keyword}+when:{period_code}&hl=th&gl=TH&ceid=TH:th"
@@ -82,8 +83,6 @@ def fetch_multitopic_data(keywords_str, period_name):
     period_code = get_period_code(period_name)
     keywords = [k.strip() for k in keywords_str.split(",") if k.strip()]
     all_data_stream = ""
-    
-    # วนลูปดึงข้อมูลผสมกันทีละ Keyword เพื่อความครอบคลุม
     for kw in keywords:
         all_data_stream += f"=== Target Keyword: {kw} ===\n"
         all_data_stream += fetch_news_data(kw, period_code) + "\n"
@@ -91,7 +90,7 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "---------------------------------------\n\n"
     return all_data_stream
 
-# --- 5. Airline Strategy Synthesis via REST API ---
+# --- 5. Airline Strategy Synthesis via Original SDK (กลับมาใช้ระบบเดิมที่รันผ่าน) ---
 def generate_airline_report(raw_data, topics):
     if not GOOGLE_API_KEY:
         return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
@@ -119,20 +118,13 @@ def generate_airline_report(raw_data, topics):
     - Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.
     """
     
-    # ยิงตรงเข้าโมเดลผ่าน REST API แบบสากล มั่นใจได้ว่าไม่มีปัญหาเรื่องรุ่นเก่าใหม่
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
-    
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        if response.status_code == 200:
-            res_json = response.json()
-            return res_json['candidates'][0]['content']['parts'][0]['text']
-        else:
-            return f"⚠️ Google API Error ({response.status_code}): {response.text}"
+        # กลับมาใช้ตัวแปลงคำสั่งดั้งเดิมของไลบรารีมาตรฐานที่ทำงานได้ชัวร์
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        return response.text
     except Exception as e:
-        return f"⚠️ Connection Failed: {str(e)}"
+        return f"⚠️ Strategy Synthesis Link Blocked: {str(e)}"
 
 # --- 6. Clean English Dashboard User Interface ---
 st.title("Aviation Social Listening & Executive Insights")
@@ -157,6 +149,8 @@ st.write("")
 if st.button("🚀 Execute Strategic Analysis", use_container_width=True):
     if not keywords_input:
         st.warning("Please enter at least one keyword.")
+    elif not GOOGLE_API_KEY:
+        st.error("⚠️ Setup incomplete. GOOGLE_API_KEY is not configured inside Streamlit Secrets.")
     else:
         with st.spinner("Harvesting Google News streams and crawling Pantip forums for blended aviation intelligence..."):
             combined_data = fetch_multitopic_data(keywords_input, time_period)
