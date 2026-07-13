@@ -118,9 +118,13 @@ def generate_airline_report(raw_data, topics):
     - Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.
     """
     
-    try:
-        # กลับมาใช้ตัวแปลงคำสั่งดั้งเดิมของไลบรารีมาตรฐานที่ทำงานได้ชัวร์
-        model = genai.GenerativeModel('gemini-1.5-flash')
+   try:
+        # ❌ โค้ดเดิม (ที่ทำให้ติด 404):
+        # model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        #  โค้ดใหม่ (ระบุรุ่นย่อยเต็มยศผ่าน SDK เพื่อให้แมตช์กับระบบล่าสุดของ Google):
+        model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
+        
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
