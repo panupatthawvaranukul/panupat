@@ -2,7 +2,7 @@ import streamlit as st
 import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
-import google.generativeai as genai
+import json
 
 # --- 1. Web Page & Global Roboto Font Configuration ---
 st.set_page_config(
@@ -26,23 +26,22 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (ใช้ตู้เซฟ Secrets แบบดั้งเดิม) ---
+# --- 2. API Connection Settings (ดึงรหัสผ่านตู้เซฟ Secrets) ---
 GOOGLE_API_KEY = None
 try:
     GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
 except Exception:
     pass
 
-# เปิดใช้ระบบ Config ของไลบรารีเวอร์ชันเดิมที่เคยทำงานได้
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
+if not GOOGLE_API_KEY:
+    GOOGLE_API_KEY = ""
 
 # --- 3. Data Horizon Period Converter ---
 def get_period_code(period_name):
     mapping = {"1 Week": "7d", "1 Month": "1m", "3 Months": "3m", "6 Months": "6m", "1 Year": "1y"}
     return mapping.get(period_name, "7d")
 
-# --- 4. Fetch Blended Data Functions (Google News + Pantip) ---
+# --- 4. Fetch Cross-Platform Data (ผสม Google News + Pantip) ---
 def fetch_news_data(kw, period_code):
     encoded_keyword = urllib.parse.quote(kw)
     url = f"https://news.google.com/rss/search?q={encoded_keyword}+when:{period_code}&hl=th&gl=TH&ceid=TH:th"
@@ -90,7 +89,7 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "---------------------------------------\n\n"
     return all_data_stream
 
-# --- 5. Airline Strategy Synthesis via Original SDK (กลับมาใช้ระบบเดิมที่รันผ่าน) ---
+# --- 5. AI Strategy Synthesis via Direct REST API v1 (แก้บั๊ก 404 ถาวร) ---
 def generate_airline_report(raw_data, topics):
     if not GOOGLE_API_KEY:
         return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
@@ -118,17 +117,20 @@ def generate_airline_report(raw_data, topics):
     - Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.
     """
     
-   try:
-        # ❌ โค้ดเดิม (ที่ทำให้ติด 404):
-        # model = genai.GenerativeModel('gemini-1.5-flash')
-        
-        #  โค้ดใหม่ (ระบุรุ่นย่อยเต็มยศผ่าน SDK เพื่อให้แมตช์กับระบบล่าสุดของ Google):
-        model = genai.GenerativeModel('models/gemini-1.5-flash-latest')
-        
-        response = model.generate_content(prompt)
-        return response.text
+    # 🚀 ใช้ท่อ REST API หลัก (v1) ยิงเข้าหาโมเดลตรงๆ โดยไม่ผ่าน SDK ที่ชอบค้างแคช
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    
+    try:
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code == 200:
+            res_json = response.json()
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return f"⚠️ API Error ({response.status_code}): {response.text}"
     except Exception as e:
-        return f"⚠️ Strategy Synthesis Link Blocked: {str(e)}"
+        return f"⚠️ Connection Failed: {str(e)}"
 
 # --- 6. Clean English Dashboard User Interface ---
 st.title("Aviation Social Listening & Executive Insights")
@@ -138,7 +140,7 @@ col_search, col_time = st.columns([2, 1])
 
 with col_search:
     keywords_input = st.text_input(
-        "Search Keywords (Separate multiple topics with a comma ',' | Thai keywords supported)", 
+        "Search Keywords (Separate multiple topics with a commas ',' | Thai keywords supported)", 
         value="บริการสายการบิน, เลื่อนไฟลท์"
     )
 
