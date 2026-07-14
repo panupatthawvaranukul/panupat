@@ -110,7 +110,7 @@ def generate_airline_report(raw_data, topics):
     """
     
     # 📌 สูตรลับปี 2026: ใช้ Endpoint ท่อตรง v1beta + บังคับชื่อโมเดลรุ่นเจาะจง gemini-1.5-flash-latest
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
