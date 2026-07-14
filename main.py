@@ -89,7 +89,7 @@ def generate_airline_report(raw_data, topics):
     prompt = f"Analyze the following blended online intelligence data regarding these topics: '{topics}'\n\nBlended Raw Data:\n{raw_data}"
     
     # ใช้ท่อหลัก v1 คู่กับรุ่นทางการที่การันตีความเสถียรระยะยาว
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
     
     # แก้ไข Payload โครงสร้าง JSON ใหม่ทั้งหมด ให้มีระบบการกำหนดบทบาท (role: user) ตามที่ Google REST API บังคับ
