@@ -2,7 +2,8 @@ import streamlit as st
 import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
-import json
+from google import genai
+from google.genai import types
 
 # --- [1] การตั้งค่าหน้าเว็บ & ฟอนต์สำหรับภาษาไทยและอังกฤษ ---
 st.set_page_config(
@@ -81,58 +82,40 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "---------------------------------------\n\n"
     return all_data_stream
 
-# --- [5] ฟังก์ชันสังเคราะห์รายงานด้วย REST API มาตรฐานเสถียร ---
+# --- [5] ฟังก์ชันสังเคราะห์รายงานด้วย Google GenAI SDK (เสถียรและใหม่ล่าสุด) ---
 def generate_airline_report(raw_data, topics):
     if not GOOGLE_API_KEY:
         return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
         
+    # เรียกใช้โครงสร้าง SDK ตัวใหม่ที่คุณส่งมา พร้อมส่ง Key ที่ดึงมาจากตู้เซฟหลังบ้านของ Streamlit
+    client = genai.Client(api_key=GOOGLE_API_KEY)
+    
     prompt = f"Analyze the following blended online intelligence data regarding these topics: '{topics}'\n\nBlended Raw Data:\n{raw_data}"
     
-    # ใช้ท่อหลัก v1 คู่กับรุ่นทางการที่การันตีความเสถียรระยะยาว
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
-    headers = {"Content-Type": "application/json"}
-    
-    # แก้ไข Payload โครงสร้าง JSON ใหม่ทั้งหมด ให้มีระบบการกำหนดบทบาท (role: user) ตามที่ Google REST API บังคับ
-    payload = {
-        "contents": [
-            {
-                "role": "user",
-                "parts": [
-                    {
-                        "text": "You are the Chief Strategic Officer (CSO) of a leading international airline. Your task is to synthesize cross-platform data into a high-level strategic Executive Brief in English.\n\n"
-                                "Strict Strategic Requirements:\n"
-                                "1. Tailor every single insight to the AIRLINE ecosystem (e.g., fleet operations, passenger service, ground handling, ticketing, crisis PR, or brand reputation).\n"
-                                "2. Juxtapose media coverage against ground-level consumer feedback: Contrast how mainstream Google News reports these topics versus what real passengers are complaining about or praising on Pantip.\n"
-                                "3. Structure the report using clean, uniform Markdown headers.\n\n"
-                                "Structure the report with these exact English sections:\n"
-                                "## Executive Summary\n"
-                                "- Provide a concise 3-line overview of the multi-channel narrative and prevailing sentiment.\n"
-                                "## Blended Media & Pantip Passenger Insights\n"
-                                "- Detailed breakdown of specific customer pain points, recurring flight/service complaints, or public praise found in the data.\n"
-                                "## Airline Strategic Recommendations\n"
-                                "- Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately."
-                    },
-                    {
-                        "text": prompt
-                    }
-                ]
-            }
-        ],
-        "generationConfig": {
-            "temperature": 0.2,
-            "topP": 0.95
-        }
-    }
-    
     try:
-        response = requests.post(url, headers=headers, json=payload, timeout=30)
-        if response.status_code == 200:
-            res_json = response.json()
-            return res_json['candidates'][0]['content']['parts'][0]['text']
-        else:
-            return f"⚠️ Google API Error ({response.status_code}): {response.text}"
+        # ใช้รุ่นที่ใหม่และทำงานได้เสถียรที่สุดในตระกูล Flash ณ ปัจจุบัน
+        response = client.models.generate_content(
+            model="gemini-2.0-flash", 
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="You are the Chief Strategic Officer (CSO) of a leading international airline. Your task is to synthesize cross-platform data into a high-level strategic Executive Brief in English.\n\n"
+                                   "Strict Strategic Requirements:\n"
+                                   "1. Tailor every single insight to the AIRLINE ecosystem (e.g., fleet operations, passenger service, ground handling, ticketing, crisis PR, or brand reputation).\n"
+                                   "2. Juxtapose media coverage against ground-level consumer feedback: Contrast how mainstream Google News reports these topics versus what real passengers are complaining about or praising on Pantip.\n"
+                                   "3. Structure the report using clean, uniform Markdown headers.\n\n"
+                                   "Structure the report with these exact English sections:\n"
+                                   "## Executive Summary\n"
+                                   "- Provide a concise 3-line overview of the multi-channel narrative and prevailing sentiment.\n"
+                                   "## Blended Media & Pantip Passenger Insights\n"
+                                   "- Detailed breakdown of specific customer pain points, recurring flight/service complaints, or public praise found in the data.\n"
+                                   "## Airline Strategic Recommendations\n"
+                                   "- Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.",
+                temperature=0.2
+            )
+        )
+        return response.text
     except Exception as e:
-        return f"⚠️ Connection Failed: {str(e)}"
+        return f"⚠️ Google GenAI SDK Error: {str(e)}"
 
 # --- [6] ส่วนแสดงผลหน้าจอผู้ใช้งาน (User Interface) ---
 st.title("Aviation Social Listening & Executive Insights")
