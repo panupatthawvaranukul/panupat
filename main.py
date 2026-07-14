@@ -81,38 +81,48 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "---------------------------------------\n\n"
     return all_data_stream
 
-# --- [5] ฟังก์ชันสังเคราะห์รายงานด้วย REST API (แก้บั๊ก 404/v1beta ค้างถาวร) ---
+# --- [5] ฟังก์ชันสังเคราะห์รายงานด้วย REST API มาตรฐานเสถียร ---
 def generate_airline_report(raw_data, topics):
     if not GOOGLE_API_KEY:
         return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
         
-    prompt = f"""
-    You are the Chief Strategic Officer (CSO) of a leading international airline.
-    Analyze the following blended online intelligence data (comprising official public Google News reports and organic consumer discussions from Pantip forums) regarding these topics: "{topics}"
+    prompt = f"Analyze the following blended online intelligence data regarding these topics: '{topics}'\n\nBlended Raw Data:\n{raw_data}"
     
-    Blended Raw Data:
-    {raw_data}
-    
-    Your task is to synthesize this cross-platform data into a high-level strategic Executive Brief in English.
-    
-    Strict Strategic Requirements:
-    1. Tailor every single insight to the AIRLINE ecosystem (e.g., fleet operations, passenger service, ground handling, ticketing, crisis PR, or brand reputation).
-    2. Juxtapose media coverage against ground-level consumer feedback: Contrast how mainstream Google News reports these topics versus what real passengers are complaining about or praising on Pantip.
-    3. Structure the report using clean, uniform Markdown headers.
-    
-    Structure the report with these exact English sections:
-    ## Executive Summary
-    - Provide a concise 3-line overview of the multi-channel narrative and prevailing sentiment.
-    ## Blended Media & Pantip Passenger Insights
-    - Detailed breakdown of specific customer pain points, recurring flight/service complaints, or public praise found in the data.
-    ## Airline Strategic Recommendations
-    - Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.
-    """
-    
-    # 📌 สูตรลับปี 2026: ใช้ Endpoint ท่อตรง v1beta + บังคับชื่อโมเดลรุ่นเจาะจง gemini-1.5-flash-latest
-    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent?key={GOOGLE_API_KEY}"
+    # ใช้ท่อหลัก v1 คู่กับรุ่นทางการที่การันตีความเสถียรระยะยาว
+    url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GOOGLE_API_KEY}"
     headers = {"Content-Type": "application/json"}
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    
+    # แก้ไข Payload โครงสร้าง JSON ใหม่ทั้งหมด ให้มีระบบการกำหนดบทบาท (role: user) ตามที่ Google REST API บังคับ
+    payload = {
+        "contents": [
+            {
+                "role": "user",
+                "parts": [
+                    {
+                        "text": "You are the Chief Strategic Officer (CSO) of a leading international airline. Your task is to synthesize cross-platform data into a high-level strategic Executive Brief in English.\n\n"
+                                "Strict Strategic Requirements:\n"
+                                "1. Tailor every single insight to the AIRLINE ecosystem (e.g., fleet operations, passenger service, ground handling, ticketing, crisis PR, or brand reputation).\n"
+                                "2. Juxtapose media coverage against ground-level consumer feedback: Contrast how mainstream Google News reports these topics versus what real passengers are complaining about or praising on Pantip.\n"
+                                "3. Structure the report using clean, uniform Markdown headers.\n\n"
+                                "Structure the report with these exact English sections:\n"
+                                "## Executive Summary\n"
+                                "- Provide a concise 3-line overview of the multi-channel narrative and prevailing sentiment.\n"
+                                "## Blended Media & Pantip Passenger Insights\n"
+                                "- Detailed breakdown of specific customer pain points, recurring flight/service complaints, or public praise found in the data.\n"
+                                "## Airline Strategic Recommendations\n"
+                                "- Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately."
+                    },
+                    {
+                        "text": prompt
+                    }
+                ]
+            }
+        ],
+        "generationConfig": {
+            "temperature": 0.2,
+            "topP": 0.95
+        }
+    }
     
     try:
         response = requests.post(url, headers=headers, json=payload, timeout=30)
