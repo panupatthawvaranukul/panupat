@@ -2,9 +2,9 @@ import streamlit as st
 import urllib.parse
 import xml.etree.ElementTree as ET
 import requests
-import google.generativeai as genai
+import json
 
-# --- 1. Web Page & Global Font Configuration ---
+# --- [1] การตั้งค่าหน้าเว็บ & ฟอนต์สำหรับภาษาไทยและอังกฤษ ---
 st.set_page_config(
     page_title="Airline Social Listening Dashboard",
     page_icon="✈️",
@@ -17,27 +17,23 @@ st.markdown("""
         html, body, [class*="css"], .stMarkdown, p, button, input, select {
             font-family: 'Roboto', sans-serif !important;
             font-size: 15px !important;
+            line-height: 1.6 !important;
         }
+        h1 { font-size: 26px !important; font-weight: 700 !important; margin-bottom: 20px !important; }
+        h2 { font-size: 20px !important; font-weight: 500 !important; margin-top: 15px !important; margin-bottom: 10px !important; }
         .report-box { padding: 20px; border-radius: 8px; background-color: transparent; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 2. API Connection Settings (ดึงค่าจาก Secrets) ---
-GOOGLE_API_KEY = None
-try:
-    GOOGLE_API_KEY = st.secrets["GOOGLE_API_KEY"]
-except Exception:
-    pass
+# --- [2] การเชื่อมต่อ Secrets ปลอดภัยหลังบ้าน ---
+GOOGLE_API_KEY = st.secrets.get("GOOGLE_API_KEY", "")
 
-if GOOGLE_API_KEY:
-    genai.configure(api_key=GOOGLE_API_KEY)
-
-# --- 3. Data Horizon Period Converter ---
+# --- [3] ฟังก์ชันแปลงช่วงเวลาสำหรับ Google News ---
 def get_period_code(period_name):
     mapping = {"1 Week": "7d", "1 Month": "1m", "3 Months": "3m", "6 Months": "6m", "1 Year": "1y"}
     return mapping.get(period_name, "7d")
 
-# --- 4. Fetch Blended Data Functions (Google News + Pantip) ---
+# --- [4] ฟังก์ชันการดึงข้อมูล Blended Data ---
 def fetch_news_data(kw, period_code):
     encoded_keyword = urllib.parse.quote(kw)
     url = f"https://news.google.com/rss/search?q={encoded_keyword}+when:{period_code}&hl=th&gl=TH&ceid=TH:th"
@@ -47,11 +43,11 @@ def fetch_news_data(kw, period_code):
         root = ET.fromstring(response.content)
         items = root.findall('.//item')[:6]
         if items:
-            data_stream += f"📰 [Google News Streams Regarding: {kw}] ===\n"
+            data_stream += f"📰 [Google News Streams Regarding: {kw}]\n"
             for item in items:
                 title = item.find('title').text if item.find('title') is not None else ""
                 data_stream += f"- {title}\n"
-    except Exception:
+    except:
         pass
     return data_stream
 
@@ -65,12 +61,12 @@ def fetch_pantip_data(kw):
         root = ET.fromstring(response.content)
         items = root.findall('.//item')[:8]
         if items:
-            data_stream += f"💬 [Consumer Voices on Pantip Regarding: {kw}] ===\n"
+            data_stream += f"💬 [Consumer Voices on Pantip Regarding: {kw}]\n"
             for item in items:
                 title = item.find('title').text if item.find('title') is not None else ""
                 clean_title = title.split(" - Pantip")[0]
                 data_stream += f"- {clean_title}\n"
-    except Exception:
+    except:
         pass
     return data_stream
 
@@ -85,7 +81,7 @@ def fetch_multitopic_data(keywords_str, period_name):
         all_data_stream += "---------------------------------------\n\n"
     return all_data_stream
 
-# --- 5. Generate Report Using Classic Stable Model ---
+# --- [5] ฟังก์ชันสังเคราะห์รายงานด้วย REST API (แก้บั๊ก 404/v1beta ค้างถาวร) ---
 def generate_airline_report(raw_data, topics):
     if not GOOGLE_API_KEY:
         return "⚠️ Missing GOOGLE_API_KEY. Please configure it in Streamlit Secrets."
@@ -113,15 +109,22 @@ def generate_airline_report(raw_data, topics):
     - Actionable operational modifications, customer service protocols, or aviation marketing steps the board should execute immediately.
     """
     
+    # 📌 สูตรลับปี 2026: ใช้ Endpoint ท่อตรง v1beta + บังคับชื่อโมเดลรุ่นเจาะจง gemini-1.5-flash-latest
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key={GOOGLE_API_KEY}"
+    headers = {"Content-Type": "application/json"}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    
     try:
-        # ใช้โมเดลคลาสสิกตัวดั้งเดิมของไลบรารีมาตรฐานที่ทนทานและไม่ติดปัญหา 404 ของรุ่นใหม่
-        model = genai.GenerativeModel('gemini-pro')
-        response = model.generate_content(prompt)
-        return response.text
+        response = requests.post(url, headers=headers, json=payload, timeout=30)
+        if response.status_code == 200:
+            res_json = response.json()
+            return res_json['candidates'][0]['content']['parts'][0]['text']
+        else:
+            return f"⚠️ Google API Error ({response.status_code}): {response.text}"
     except Exception as e:
-        return f"⚠️ Strategy Synthesis Failed: {str(e)}"
+        return f"⚠️ Connection Failed: {str(e)}"
 
-# --- 6. User Interface ---
+# --- [6] ส่วนแสดงผลหน้าจอผู้ใช้งาน (User Interface) ---
 st.title("Aviation Social Listening & Executive Insights")
 st.write("Blended Intelligence Dashboard: Google News Streams + Pantip Community Forums")
 
@@ -143,9 +146,7 @@ st.write("")
 
 if st.button("🚀 Execute Strategic Analysis", use_container_width=True):
     if not keywords_input:
-        st.warning("Please enter a keyword.")
-    elif not GOOGLE_API_KEY:
-        st.error("⚠️ Setup incomplete. GOOGLE_API_KEY is not configured inside Streamlit Secrets.")
+        st.warning("Please enter at least one keyword.")
     else:
         with st.spinner("Harvesting Google News streams and crawling Pantip forums for blended aviation intelligence..."):
             combined_data = fetch_multitopic_data(keywords_input, time_period)
